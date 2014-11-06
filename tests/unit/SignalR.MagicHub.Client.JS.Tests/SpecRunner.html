@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Jasmine Spec Runner</title>
+		<link rel="stylesheet" href="css/jasmine.css" />
+		<script  type="text/javascript" src="Scripts/jasmine.js"></script>
+		<script type="text/javascript" src="Scripts/jasmine-html.js"></script>
+		
+		<!-- include source files here... -->
+		<script type="text/javascript" src="../../../src/SignalR.MagicHub/scripts/jquery-1.9.1.js"></script>
+		<script type="text/javascript" src="../../../src/SignalR.MagicHub/scripts/jquery.signalR-2.0.1.js"></script>
+		<script type="text/javascript" src="Scripts/hubs.js"></script>
+		<script type="text/javascript" src="../../../src/SignalR.MagicHub/scripts/jquery.magicHub.core.js"></script>
+		<!-- include spec files here... -->
+		<script type="text/javascript" src="spec/MagicHubSpec.js"></script>
+
+		<script type="text/javascript">
+			(function() {
+			  var jasmineEnv = jasmine.getEnv();
+			  jasmineEnv.updateInterval = 1000;
+
+			  var htmlReporter = new jasmine.HtmlReporter();
+
+			  jasmineEnv.addReporter(htmlReporter);
+
+			  jasmineEnv.specFilter = function(spec) {
+				return htmlReporter.specFilter(spec);
+			  };
+
+			  var currentWindowOnload = window.onload;
+
+			  window.onload = function() {
+				if (currentWindowOnload) {
+				  currentWindowOnload();
+				}
+				execJasmine();
+			  };
+
+			  function execJasmine() {
+				jasmineEnv.execute();
+			  }
+
+			})();
+		</script>
+	</head>
+	<body>
+	</body>
+</html>

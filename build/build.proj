@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="BuildCmd" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <UsingTask AssemblyFile="$(MSBuildCommunityTaskDllPath)" TaskName="MSBuild.Community.Tasks.NUnit"/>
+  <UsingTask AssemblyFile="$(MSBuildCommunityTaskDllPath)" TaskName="MSBuild.Community.Tasks.FileUpdate"/>
+  <UsingTask AssemblyFile="$(MSBuildCommunityTaskDllPath)" TaskName="MSBuild.Community.Tasks.Git.GitVersion"/>
+  <UsingTask AssemblyFile="$(MSBuildCommunityTaskDllPath)" TaskName="MSBuild.Community.Tasks.AssemblyInfo"/>
+  <UsingTask AssemblyFile="$(YUICompressorTasksPath)" TaskName="CssCompressorTask"/>
+  <UsingTask AssemblyFile="$(YUICompressorTasksPath)" TaskName="JavaScriptCompressorTask"/>
+  <PropertyGroup>
+    <Configuration Condition="$(Configuration) == ''">Debug</Configuration>
+    <ProjectRoot>$(MSBuildProjectDirectory)\..</ProjectRoot>
+    <ClassLibraryOutputDirectory>bin\$(Configuration)</ClassLibraryOutputDirectory>
+    <DistDir>$(ProjectRoot)\dist</DistDir>
+    <NuGetToolsPath>$(ProjectRoot)\.nuget</NuGetToolsPath>
+    <NuGetExePath>$(NuGetToolsPath)\nuget.exe</NuGetExePath>
+    <NuGetConfigPath>$(NuGetToolsPath)\nuget.config</NuGetConfigPath>
+    <BuildPackagesConfigPath>$(ProjectRoot)\build\packages.config</BuildPackagesConfigPath>
+    <PackagesPath>$(ProjectRoot)\packages</PackagesPath>
+    <ToolsPath>$(ProjectRoot)\tools\</ToolsPath>
+    <JSTestsPath>$(ProjectRoot)\tests\unit\SignalR.MagicHub.Client.JS.Tests\spec</JSTestsPath>
+    <JSTester>$(ProjectRoot)\tests\unit\SignalR.MagicHub.Client.JS.Tests\SpecRunner.html</JSTester>
+    <DocuExePath>$(ToolsPath)docu\docu.exe</DocuExePath>
+    <ProjectNuspecPath>$(NuGetToolsPath)\SignalR.MagicHub\SignalR.MagicHub.nuspec</ProjectNuspecPath>
+    <ProjectJSNuspecPath>$(NuGetToolsPath)\SignalR.MagicHub.JS\SignalR.MagicHub.JS.nuspec</ProjectJSNuspecPath>
+    <MSBuildCommunityTaskDllPath>$(PackagesPath)\MSBuildTasks\tools\MSBuild.Community.Tasks.dll</MSBuildCommunityTaskDllPath>
+    <YUICompressorTasksPath>$(ProjectRoot)\lib\\Yahoo.Yui.Compressor.Build.MsBuild.dll</YUICompressorTasksPath>
+    <ResourcePackPath>$(ProjectRoot)\src\SignalR.MagicHub</ResourcePackPath>
+    <MagicHubDllPath>$(ProjectRoot)\src\SignalR.MagicHub\bin\</MagicHubDllPath>
+  </PropertyGroup>
+  <Import Project="$(NuGetToolsPath)\NuGet.targets"/>
+  <ItemGroup>
+    <!--Requires VS2012 and -->
+    <CoreProjects Include="$(ProjectRoot)\SignalR.MagicHub.sln"/>
+  </ItemGroup>
+  <ItemGroup>
+    <BuildProjects Include="@(CoreProjects)"/>
+  </ItemGroup>
+  <ItemGroup>
+    <UnitTestProjects Include="$(ProjectRoot)\tests\unit\SignalR.MagicHub.Tests\SignalR.MagicHub.Tests.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <JsTestProjects Include="$(ProjectRoot)\tests\unit\SignalR.MagicHub.Client.JS.Tests\SignalR.MagicHub.Client.JS.Tests.csproj"/>
+  </ItemGroup>
+  <Target DependsOnTargets="CheckPrerequisites" Name="RestoreBuildPackages">
+    <Exec Command="$(NuGetExePath) install $(BuildPackagesConfigPath) -configFile $(NuGetConfigPath) -ExcludeVersion"/>
+  </Target>
+  <Target DependsOnTargets="RestoreBuildPackages;Build;RunUnitTests;RunJsUnitTests" Name="BuildCmd"/>
+  <Target DependsOnTargets="RestoreBuildPackages;UpdateAssemblyVersion;Build;RunJsUnitTests;Pack;" Name="CI"/>
+  <Target DependsOnTargets="RestoreBuildPackages" Name="Minify">
+    <ItemGroup>
+      <!-- Files to pack and minify into jquery.magicHub[.min].js -->
+      <JavaScriptFiles Exclude="$(ResourcePackPath)\Scripts\jquery.signalR-*.min.js" Include="$(ResourcePackPath)\Scripts\jquery.signalR-*.js"/>
+      <JavaScriptFiles Include="$(ResourcePackPath)\Scripts\hubs.js"/>
+      <JavaScriptFiles Include="$(ResourcePackPath)\Scripts\jquery.magicHub.core.js"/>
+      <!-- Dependencies for packing / minification / hubs.js generation -->
+      <DependentDlls Include="$(ProjectRoot)\packages\EcmaScript.Net\lib\net20\EcmaScript.NET.dll"/>
+      <DependentDlls Include="$(ProjectRoot)\packages\Iesi.Collections\lib\Net35\Iesi.Collections.dll"/>
+      <DependentDlls Include="$(ProjectRoot)\packages\YUICompressor.NET\lib\NET20\Yahoo.Yui.Compressor.dll"/>
+      <DependentDlls Include="$(ProjectRoot)\packages\YUICompressor.NET.MSBuild\lib\NET20\Yahoo.Yui.Compressor.Build.MsBuild.dll"/>
+      <DependentDlls Include="$(ProjectRoot)\packages\Microsoft.AspNet.SignalR.Utils\tools\signalr.exe"/>
+    </ItemGroup>
+    <!-- copy all dependent files into lib directory for execution -->
+    <Copy DestinationFolder="$(ProjectRoot)\lib" OverwriteReadOnlyFiles="True" SourceFiles="@(DependentDlls)"/>
+    <!-- generate hubs.js proxy from TopicBroker in MagicHub.dll -->
+    <Exec Command="$(ProjectRoot)\lib\signalr.exe ghp /path:$(MagicHubDllPath) /o:$(ResourcePackPath)\Scripts\hubs.js /url:/magic-hub/signalr/"/>
+    <!-- Create unminified packed script -->
+    <JavaScriptCompressorTask CompressionType="None" OutputFile="$(ResourcePackPath)\Scripts\jquery.magicHub.js" SourceFiles="@(JavaScriptFiles)"/>
+    <!-- Create minified script -->
+    <JavaScriptCompressorTask CompressionType="Standard" OutputFile="$(ResourcePackPath)\Scripts\jquery.magicHub.min.js" SourceFiles="@(JavaScriptFiles)"/>
+  </Target>
+  <Target Condition="'$(Version)' != ''" Name="UpdateAssemblyVersion">
+    <FileUpdate Files="$(ProjectRoot)\src\GlobalAssemblyInfo.cs" Regex="(\d+)\.(\d+)\.(\d+)\.(\d+)" ReplacementText="$(Version)"/>
+  </Target>
+  <Target DependsOnTargets="CreateOutputDir" Name="RunJsUnitTests">
+    <ItemGroup>
+      <ChutzpahExePath Include="$(PackagesPath)\Chutzpah.*\tools\chutzpah.console.exe"/>
+    </ItemGroup>
+    <Exec Command="@(ChutzpahExePath) $(JSTestsPath) /coverage /coverageIncludes *magicHub.*  /timeoutMilliseconds 30000" Condition=" '$(OS)' == 'Windows_NT'"/>
+  </Target>
+  <Target DependsOnTargets="CreateOutputDir;RestoreBuildPackages" Name="RunUnitTests">
+    <CreateItem Include="$(ProjectRoot)\**\bin\debug\*Test*.dll">
+      <Output ItemName="TestAssemblies" TaskParameter="Include"/>
+    </CreateItem>
+    <ItemGroup>
+      <NUnitPackageExePath Include="$(PackagesPath)\NUnit.Runners.*\tools\nunit-console.exe"/>
+    </ItemGroup>
+    <NUnit Assemblies="@(TestAssemblies)" ToolPath="@(NUnitPackageExePath-&gt;'%(relativedir)')"/>
+  </Target>
+  <Target DependsOnTargets="CreateOutputDir" Name="Pack">
+    <Exec Command="$(NuGetExePath) pack $(ProjectNuspecPath) -outputDirectory $(DistDir) -Version $(Version)"/>
+    <Exec Command="$(NuGetExePath) pack $(ProjectJSNuspecPath) -outputDirectory $(DistDir) -Version $(Version)"/>
+  </Target>
+  <Target Name="CreateOutputDir">
+    <RemoveDir Condition="Exists('$(DistDir)')" ContinueOnError="true" Directories="$(DistDir)"/>
+    <MakeDir Condition="!Exists('$(DistDir)')" Directories="$(DistDir)"/>
+  </Target>
+  <Target DependsOnTargets="CreateOutputDir;" Name="Build">
+    <MSBuild Condition=" '$(OS)' == 'Windows_NT'" Projects="%(BuildProjects.Identity)" Properties="Configuration=$(Configuration);SolutionDir=$(ProjectRoot)\;$(ExtraProperties)" Targets="Build"/>
+  </Target>
+</Project>
