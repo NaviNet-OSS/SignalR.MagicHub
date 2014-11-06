@@ -9,15 +9,18 @@
 
 SignalR.MagicHub is a publish-subscribe framework built on top of ASP.NET SignalR, which is an Open Source Microsoft.NET-based WebSockets framework. WebSockets is an Internet standard created in 2011 that provides for a realtime communication channels to be open between a web browser and a server. MagicHub makes it possible to use a single WebSocket channel to transmit messages and data of any topic to UI components on the browser. Without MagicHub each component would have to open its own channel, which is inefficient on the browser and requires more server capacity in data center.
 
+## LICENSE
+[Apache 2.0 License](https://github.com/NaviNet/SignalR.MagicHub/blob/master/LICENSE)
+
 ## Pre-requiste 
 Read [ASP.NET SignalR Documentation](http://www.asp.net/signalr/overview/getting-started)
 
-## Developer Setup
-    
-	git clone git@git:SignalR.MagicHub
-	cd SignalR.MagicHub
-    build && build install
+## Get it on Nuget!
+    Install-Package SignalR.MagicHub
 
+## Developer Setup
+    git clone https://github.com/NaviNet/SignalR.MagicHub.git
+    build && build install
 
 ## Design
 
