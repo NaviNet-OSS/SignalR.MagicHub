@@ -19,9 +19,9 @@ namespace SignalR.MagicHub
         {
             optionalMessage = optionalMessage == null
                                   ? string.Empty
-                                  : string.Format("Error occurred: {0}\n", optionalMessage);
+                                  : string.Format("ErrorOccurred=\"{0}\" ", optionalMessage);
             
-            trace.TraceError("{3}Exception Type: {0}\nException Message: {1}\nStack:\n{2}", ex.GetType().FullName,
+            trace.TraceError("{3} ExceptionType=\"{0}\" ExceptionMessage=\"{1}\" StackTrace={2}", ex.GetType().FullName,
                              ex.Message, ex.StackTrace, optionalMessage);
             return trace;
         }

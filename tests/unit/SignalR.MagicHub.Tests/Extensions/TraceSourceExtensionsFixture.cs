@@ -22,7 +22,7 @@ namespace SignalR.MagicHub.Tests
                 It.IsAny<string>(),
                 TraceEventType.Error,
                 It.IsAny<int>(),
-                "{3}Exception Type: {0}\nException Message: {1}\nStack:\n{2}",
+                "{3} ExceptionType=\"{0}\" ExceptionMessage=\"{1}\" StackTrace={2}",
                 new object[]
                     {
                         ex.GetType().FullName, ex.Message, ex.StackTrace, ""
@@ -46,10 +46,10 @@ namespace SignalR.MagicHub.Tests
                 It.IsAny<string>(),
                 TraceEventType.Error,
                 It.IsAny<int>(),
-                "{3}Exception Type: {0}\nException Message: {1}\nStack:\n{2}",
+                "{3} ExceptionType=\"{0}\" ExceptionMessage=\"{1}\" StackTrace={2}",
                 new object[]
                     {
-                        ex.GetType().FullName, ex.Message, ex.StackTrace, "Error occurred: bar\n"
+                        ex.GetType().FullName, ex.Message, ex.StackTrace, "ErrorOccurred=\"bar\" "
                     }),
                              Times.Exactly(1));
         }
