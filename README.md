@@ -9,18 +9,15 @@
 
 SignalR.MagicHub is a publish-subscribe framework built on top of ASP.NET SignalR, which is an Open Source Microsoft.NET-based WebSockets framework. WebSockets is an Internet standard created in 2011 that provides for a realtime communication channels to be open between a web browser and a server. MagicHub makes it possible to use a single WebSocket channel to transmit messages and data of any topic to UI components on the browser. Without MagicHub each component would have to open its own channel, which is inefficient on the browser and requires more server capacity in data center.
 
-## LICENSE
-[Apache 2.0 License](https://github.com/NaviNet/SignalR.MagicHub/blob/master/LICENSE)
-
 ## Pre-requiste 
 Read [ASP.NET SignalR Documentation](http://www.asp.net/signalr/overview/getting-started)
 
-## Get it on Nuget!
-    Install-Package SignalR.MagicHub
-
 ## Developer Setup
-    git clone https://github.com/NaviNet/SignalR.MagicHub.git
+    
+	git clone git@git:SignalR.MagicHub
+	cd SignalR.MagicHub
     build && build install
+
 
 ## Design
 
@@ -174,16 +171,13 @@ Magic hub doesn't establish connection unless explicitly started. To start magic
     $.connection.magicHub.off('echo', "PatientID='1'", callback);
 
 
-Please remove this section if not applicable.  
-Overview (or diagram) of integration approach of this application with other components.
 
 ## Filters
 At the time of subscription for topic, filters can be provided as an argument. Filters follow the <a href="http://activemq.apache.org/selectors.html">SQL 92</a> syntax. 
 
-SignalR.MagicHub doesn't do the filtering. Filtering is expected to be done at the MessageHub level for scalability. 
+Filtering has been moved into MagicHub. We support a subset of the SQL-92 syntax. The `BETWEEN` operator is not supported, and dates are not supported.
 
-For example: 
-If you use ActiveMQ as the message bus, filtering can be provided by the ActiveMQ using [JMS Selectors](http://activemq.apache.org/selectors.html). 
+The project is configured to cache filters in memory to avoid repeated parsing of the same string.
  
 
 ## Session Management
@@ -202,7 +196,13 @@ Implement `ISessionStateProvider` and register.
 
 ## Exception Handling / Logging / Tracing
 
+### Warnings
+We have observed that one of the components we use sometimes experiences a timeout when subscribing to a topic. Despite this, everything seems to continue functioning according to specification. We have only observed this for connections using the longpolling transport. In order to monitor this, we log a warning
+
+`Groups add seems to have timed out. ConnectionId=GUID Topic=TOPIC Filter=FILTER`
 ### Exceptions
+#### Server
+To log any unhandled exception NaviNetSignalRMagicHub uses NLog + NLog.Syslog formatter. NLog configuration can be found in Web.config. Out of the box there is a single log target defined: Event Log. All messages with minimum level of "Warn" will be sent to Event Log.
 
 #### Client
 Any exceptions on client side are logged to browser console window.
@@ -210,4 +210,23 @@ Any exceptions on client side are logged to browser console window.
 ### Tracing
 Messages can be traced by setting  `tracing_enabled:true` in the json body. When tracing is enabled in the message, the message is logged. On the server side message is logged to Trace listener; On the client side message is logged to console window. 
 
-See [how to enable tracing](http://www.asp.net/signalr/overview/testing-and-debugging/enabling-signalr-tracing). 
+See [how to enable tracing](http://www.asp.net/signalr/overview/testing-and-debugging/enabling-signalr-tracing).
+
+On the server side, there will be up to 4 messages in the event log / splunk:
+
+
+1. [only if application sends message, which doesn't happen currently]. 
+`Receiving message (nnt:trace-test0): {"message":"","tracing_enabled":true}` 
+2. [see below] message with tracking id when ServiceHost component receives message from bus
+3. When MagicHub receives message from ServiceHost
+`Received message from messagebus (nnt:trace-test0): {"message":"","tracing_enabled":true}`
+4. When MagicHub dispatches the message to SignalR to send to the web browser
+`Sending message (nnt:trace-test0): {"message":"","tracing_enabled":true}`   
+
+
+### Tracking Id
+The newest releases use a version of ServiceHost which will log and generate tracking ids. If a message comes through with no tracking id, a message will be logged that follows the following format:
+
+`<134>1 2015-04-28T17:43:54:28Z XXX.navimedix.com NaviNet.Commons.Logging.Castle.CastleLogger 11876 ID:KBIRGER764-54109-635658253220245786-1:98:1:2:990 [NaviNet@55555 EventClass="Application" EventSeverity="Information" Processing message with newly generated TrackingId="0a4de298-4070-4467-82d7-c708a91828b7" `
+
+If an ID is present, the message will instead read `Processing message with TrackingId="{0}"`

@@ -41,13 +41,13 @@ namespace SignalR.MagicHub.Tests.Authentication
                 throw new NotImplementedException();
             }
 
-            public Task OnDisconnected()
+            public Task OnDisconnected(bool stopCalled)
             {
                 throw new NotImplementedException();
             }
 
             public HubCallerContext Context { get; set; }
-            public IHubCallerConnectionContext Clients { get; set; }
+            public IHubCallerConnectionContext<dynamic> Clients { get; set; }
             public IGroupManager Groups { get; set; }
         }
 

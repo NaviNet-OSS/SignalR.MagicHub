@@ -6,28 +6,29 @@
     <title>SignalR.MagicHub</title>
     <authors>NaviNet</authors>
     <owners>NaviNet</owners>
-    <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
     <projectUrl>https://github.com/NaviNet/SignalR.MagicHub</projectUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <description>Incredibly simple real-time signalr message hub for .NET</description>
+    <description>Incredibly simple real-time web message broker for .NET</description>
     <copyright>Copyright 2013</copyright>
-    <tags>SignalR MagicHub</tags>    
+    <tags>SignalR Message Broker</tags>    
     <dependencies>
-      <dependency id="Microsoft.AspNet.SignalR" version="2.0.1" />
-      <dependency id="Microsoft.AspNet.SignalR.Core" version="2.0.1" />
-      <dependency id="Microsoft.AspNet.SignalR.JS" version="2.0.1" />
-      <dependency id="Microsoft.AspNet.SignalR.Owin" version="1.1.2" />
-      <dependency id="Microsoft.AspNet.SignalR.SystemWeb" version="2.0.1" />
-      <dependency id="Microsoft.Owin.Host.SystemWeb" version="2.0.1" />
+      <dependency id="Microsoft.AspNet.SignalR" version="2.2.0" />
+      <dependency id="Microsoft.AspNet.SignalR.Core" version="2.2.0" />
+      <dependency id="Microsoft.AspNet.SignalR.JS" version="2.2.0" />
+      <dependency id="Microsoft.AspNet.SignalR.SystemWeb" version="2.2.0" />
+      <dependency id="Microsoft.Owin.Host.SystemWeb" version="2.1.0" />
       <dependency id="Microsoft.Web.Infrastructure" version="1.0.0.0" />
-      <dependency id="Newtonsoft.Json" version="5.0.8" />
+      <dependency id="Newtonsoft.Json" version="6.0.5" />
       <dependency id="Owin" version="1.0" />
-	    <dependency id="SignalR.MagicHub.JS" version="$version$" />
+      <dependency id="Antlr4.Runtime" version="4.3.0" />
+      <dependency id="LazyCache" version="0.5.5222.23409"/>
     </dependencies>
   </metadata>
   <files>
     <file src="..\..\src\SignalR.MagicHub\bin\SignalR.MagicHub.dll" target="lib\net45" />
     <file src="..\..\src\SignalR.MagicHub\bin\SignalR.MagicHub.MessageContracts.dll" target="lib\net45" />
     <file src="..\..\src\SignalR.MagicHub\bin\SignalR.MagicHub.SessionValidator.dll" target="lib\net45" />
+    <file src="..\..\src\SignalR.MagicHub.Filtering.Expressions\bin\Debug\SignalR.MagicHub.Filtering.Expressions.dll" target="lib\net45" />
+    <file src="..\..\src\SignalR.MagicHub.Filtering.Parsing\bin\Debug\SignalR.MagicHub.Filtering.Parsing.dll" target="lib\net45" />
    </files>
 </package>

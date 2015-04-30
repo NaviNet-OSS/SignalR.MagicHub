@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR;
@@ -26,21 +26,22 @@ namespace SignalR.MagicHub.Messaging
         private const string SOURCE = AppConstants.SignalRMagicHub;
         private readonly Microsoft.AspNet.SignalR.Messaging.IMessageBus _messageBus;
         private readonly JsonSerializer _serializer;
-        
-        private readonly ConcurrentDictionary<string, MessageBusCallbackDelegate> _topics =
-            new ConcurrentDictionary<string, MessageBusCallbackDelegate>();
+        private readonly IMessageDispatcher _messageDispatcher;
+
 
         #region ctor
 
         public MessageBus()
             : this(GlobalHost.DependencyResolver.Resolve<Microsoft.AspNet.SignalR.Messaging.IMessageBus>(),
+                   GlobalHost.DependencyResolver.Resolve<IMessageDispatcher>(),
                    GlobalHost.DependencyResolver.Resolve<JsonSerializer>())
         {
         }
 
-        public MessageBus(Microsoft.AspNet.SignalR.Messaging.IMessageBus messageBus, JsonSerializer serializer)
+        public MessageBus(Microsoft.AspNet.SignalR.Messaging.IMessageBus messageBus, IMessageDispatcher messageDispatcher, JsonSerializer serializer)
         {
             _messageBus = messageBus;
+            _messageDispatcher = messageDispatcher;
             _serializer = serializer;
             Identity = SOURCE;
             SubscribeToMessageBus();
@@ -61,27 +62,30 @@ namespace SignalR.MagicHub.Messaging
             return Publish(key, value, null);
         }
 
+
         /// <summary>
         /// Publish message to inprocess message bus.
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
+        /// <param name="properties"></param>
         /// <returns></returns>
         public virtual Task<long> Publish(string key, string value, IDictionary<string, object> properties)
         {
-            //switch the source and keys as EventKeys is copy at the time of initialization
-            var message = new Message(key, SOURCE, _serializer.Stringify(value));
+            properties = properties ?? new Dictionary<string, object>();
+            properties["Topic"] = key;
+            var message = new SignalRMessageWrapper(key, SOURCE, _serializer.Stringify(value), 
+                new ReadOnlyDictionary<string, object>(properties), _serializer);           
             _messageBus.Publish(message);
 
-            return TaskAsyncHelper.FromResult<long>(1);
+            return Task.FromResult<long>(1);
         }
 
         /// <summary>
         /// Subscribe to inprocess message bus. 
         /// </summary>
-        /// <param name="topic</param>
-        /// <param name="selector"></param>
-        /// <param name="callback"></param>
+        /// <param name="topic">Topic</param>
+        /// <param name="callback">Callback</param>
         /// <returns></returns>
         /// <remarks>
         /// Stores the callback and uses the callback when SignalR calls the main callback.
@@ -94,7 +98,7 @@ namespace SignalR.MagicHub.Messaging
         /// <summary>
         /// Subscribe to inprocess message bus. 
         /// </summary>
-        /// <param name="topic</param>
+        /// <param name="topic"></param>
         /// <param name="filter"></param>
         /// <param name="callback"></param>
         /// <returns></returns>
@@ -103,21 +107,33 @@ namespace SignalR.MagicHub.Messaging
         /// </remarks>
         public virtual Task Subscribe(string topic, string filter, MessageBusCallbackDelegate callback)
         {
-            _topics.TryAdd(topic, callback);
+
+            var subscription = new SubscriptionIdentifier(topic, filter);
+            _messageDispatcher.Subscribe(subscription, callback);
 
             //return emtpy task
             return TaskAsyncHelper.Empty;
         }
 
+        /// <summary>
+        /// Unsubscribe from messagebus.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
         public virtual Task Unsubscribe(string key)
         {
             return Unsubscribe(key, null);
         }
 
+        /// <summary>
+        /// Unsubscribe from messagebus.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
         public virtual Task Unsubscribe(string key, string filter)
         {
-            MessageBusCallbackDelegate temp;
-            _topics.TryRemove(key, out temp);
+            _messageDispatcher.Unsubscribe(new SubscriptionIdentifier(key, filter));
 
             return TaskAsyncHelper.Empty;
         }
@@ -157,18 +173,26 @@ namespace SignalR.MagicHub.Messaging
         private Task<bool> MessageResultCallBack(MessageResult result, object state)
         {
             //return emtpy task
-            result.Messages.Enumerate(message => message.Key.Equals(SOURCE), (s, message) =>
-                {
-                    MessageBusCallbackDelegate callback;
-                    if (_topics.TryGetValue(message.Source, out callback))
-                    {
-                        callback(message.Source, null, _serializer.Parse<string>(message.Value, message.Encoding));
-                    }
-                }, state);
+            result.Messages.Enumerate(message => message.Key.Equals(SOURCE), 
+                (s, message) => _messageDispatcher.DispatchMessage(message as IMagicHubMessage), state);
 
             return TaskAsyncHelper.True;
         }
 
         #endregion
+
+        private class SignalRMessageWrapper : Message, IMagicHubMessage
+        {
+            
+            public SignalRMessageWrapper(string source, string key, string value, IReadOnlyDictionary<string, object> properties, JsonSerializer serializer)
+                : base(source, key, value)
+            {
+                Context = properties;
+                Message = serializer.Parse<string>(Value, Encoding);
+            }
+
+            public string Message { get; private set; }
+            public IReadOnlyDictionary<string, object> Context { get; private set; }
+        }
     }
 }

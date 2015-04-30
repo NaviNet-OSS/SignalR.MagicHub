@@ -209,7 +209,10 @@ To send message
 
     //Resend the subscription to the server. If the subscription fails rejects the call else calls the done.
     var _resendSubscription = function (topic, filter) {
-        _topicBroker.server.subscribe(topic, filter);
+        _topicBroker.server.subscribe(topic, filter)
+            .done(function(){
+                 logger.log("Resubscribed successfully to '" + topic + "' with filter: " + filter);
+            });
     };
 
     //retry the deferred topics
@@ -460,6 +463,9 @@ To send message
 
     //resend the subscriptions
     $.connection.hub.reconnected(function () {
+        //hack for http; need warm up after reconnection
+        _send("debug/mode", { "message": "55AE6F46CFB643F68CD3128A6561C18555AE6F46CFB643F68CD3128A6561C18555AE6F46CFB643F68CD3128A6561C185" });
+
         // SignalR 2.0 has a problem with the reconnected method in websockets. 
         // Calls do hub don't fire unless you have a delay.
         // this should be fixed in 2.1.0
@@ -467,22 +473,19 @@ To send message
 
         var resubscribe = function () {
             //send the topics again
-            logger.log("Resending subscription from queue for topic(s): " + _topics);
+            logger.log("Resending subscription from queue for topic(s): " + JSON.stringify(_topics));
             $.each(_topics, function (key, topicHash) {
                 _resendSubscription(topicHash.topic, topicHash.filter);
             });
 
             //retry the topics
             _retryDeferredSubscriptions();
-
-            //hack for http; need warm up after reconnection
-            _send("debug/mode", { "message": "55AE6F46CFB643F68CD3128A6561C18555AE6F46CFB643F68CD3128A6561C18555AE6F46CFB643F68CD3128A6561C185" });
         };
 
         if ($.connection.hub.transport.name != "webSockets") {
             resubscribe();
         } else {
-            setTimeout(resubscribe, 5);
+           setTimeout(resubscribe, 100);
         }
     });
 

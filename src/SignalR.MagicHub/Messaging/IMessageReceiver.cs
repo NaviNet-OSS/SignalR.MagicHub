@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-
+﻿
 namespace SignalR.MagicHub.Messaging
 {
     /// <summary>
@@ -17,6 +13,7 @@ namespace SignalR.MagicHub.Messaging
         /// <param name="filter">The filter in SQL-92 format</param>
         /// <param name="callback">The callback from the message bus to be executed when a message comes in.</param>
         void TopicSubscribed(string topic, string filter, MessageBusCallbackDelegate callback);
+
         /// <summary>
         /// Unregister topic subscription.
         /// </summary>

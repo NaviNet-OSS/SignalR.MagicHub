@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Tracing;
 using Moq;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 using SignalR.MagicHub.Infrastructure;
 
 namespace SignalR.MagicHub.SessionValidator.Tests
@@ -155,6 +156,25 @@ namespace SignalR.MagicHub.SessionValidator.Tests
         }
 
         [Test]
+        public void Test_KeepAlive_with_cookies_calls_session_queue()
+        {
+            // Arrange 
+            ISessionState session = new SessionState(sessionKey, UserName, _baseTime.AddHours(1));
+            _mockSessionStateProvider.Setup((s) => s.GetSessionKey(It.IsAny<IDictionary<string, string>>()))
+                                     .Returns(session.SessionKey);
+            _sessionValidator.AddTrackedSession(session);
+            _mockSessionStateProvider.Setup((x) => x.KeepAlive(sessionKey, ref session)).Returns(true);
+            // advance time 30 mins
+            _mockSystemTime.SetupGet((x) => x.Now).Returns(_baseTime.AddMinutes(30));
+
+
+            // Act
+            _sessionValidator.KeepAlive(new Dictionary<string, string>());
+
+            // Assert
+            _mockSessionStateProvider.Verify((x) => x.KeepAlive(sessionKey, ref session));
+        }
+        [Test]
         public void Test_KeepAlive_calls_session_queue()
         {
             // Arrange 
@@ -175,6 +195,33 @@ namespace SignalR.MagicHub.SessionValidator.Tests
         }
 
         [Test]
+        public void Test_KeepAlive_raises_event()
+        {
+            // Arrange
+            bool called = false;
+            _sessionValidator.SessionKeptAlive += (sender, args) => called = true;
+            _sessionValidator.AddTrackedSession(new SessionState("foo", "foo", DateTime.Now));
+            // Act
+            _sessionValidator.KeepAlive("foo");
+
+            // Assert
+            Assert.That(called, Is.True);
+        }
+
+        [Test]
+        public void Test_KeepAlive_ignores_bogus_session()
+        {
+            // Arrange
+            bool called = false;
+            _sessionValidator.SessionKeptAlive += (sender, args) => called = true;
+            // Act
+            _sessionValidator.KeepAlive("foo");
+
+            // Assert
+            Assert.That(called, Is.False);
+        }
+
+        [Test]
         public void Test_AddTrackedSession_calls_session_queue()
         {
             // Arrange
@@ -187,6 +234,8 @@ namespace SignalR.MagicHub.SessionValidator.Tests
             // Assert
             Assert.That(_sessionValidator.GetTrackedSessions().Any((s) => ReferenceEquals(s, session)), Is.True);
         }
+
+
 
         [Test]
         public void Test_RemoveTrackedSession_calls_session_queue()
@@ -283,6 +332,26 @@ namespace SignalR.MagicHub.SessionValidator.Tests
         }
 
         [Test]
+        public void Test_CheckSessions_updates_session()
+        {
+            // Arrange
+            var externalSession = new SessionState("foo", "person", _mockSystemTime.Object.Now.AddDays(1));
+            _mockSessionStateProvider.Setup(s => s.GetSessionState("foo"))
+                .Returns(externalSession);
+            _sessionValidator.AddTrackedSession(new SessionState("foo", "person", _mockSystemTime.Object.Now));
+
+            // Act
+            _sessionValidator.Start();
+            Task.Delay(1010).Wait(); // wait 1 seconds + buffer
+
+            // Assert
+            var sessions = _sessionValidator.GetTrackedSessions();
+            Assert.That(sessions.Count(), Is.EqualTo(1));
+            Assert.That(sessions.First().Expires, Is.EqualTo(externalSession.Expires));
+
+        }
+
+        [Test]
         public void Test_CheckSessions_runs_and_traces()
         {
             // Act
@@ -290,7 +359,7 @@ namespace SignalR.MagicHub.SessionValidator.Tests
             Task.Delay(1001).Wait(); // wait 1 seconds + buffer
 
             // Assert
-            _mockTraceListener.Verify((t) => 
+            _mockTraceListener.Verify((t) =>
                 t.TraceEvent(
                     It.IsAny<TraceEventCache>(),
                     It.IsAny<string>(),
@@ -374,7 +443,6 @@ namespace SignalR.MagicHub.SessionValidator.Tests
 
             _sessionValidator.AddTrackedSession(notExpiringSessionState);
             
-            ICollection<string> dummy;
             bool eventCalled = false;
             _sessionValidator.SessionExpired += (sender, args) => eventCalled = true;
             // Act
@@ -385,12 +453,5 @@ namespace SignalR.MagicHub.SessionValidator.Tests
             Assert.That(_sessionValidator.GetTrackedSessions().FirstOrDefault((s) => s.SessionKey == sessionKey && s.Expires == _baseTime.AddHours(1)), Is.Not.Null);
         }
 
-        private static IDictionary<string, string> MakeCookies(string sessionID)
-        {
-            return new Dictionary<string, string>()
-                {
-                    {"NaviNet", sessionID}
-                };
-        }
     }
 }

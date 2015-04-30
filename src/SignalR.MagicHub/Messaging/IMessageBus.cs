@@ -4,8 +4,17 @@ using System.Threading.Tasks;
 
 namespace SignalR.MagicHub.Messaging
 {
+    /// <summary>
+    /// Callback delegate
+    /// </summary>
+    /// <param name="topic">Topic</param>
+    /// <param name="filter">Filter</param>
+    /// <param name="message">Message</param>
     public delegate void MessageBusCallbackDelegate(string topic, string filter, string message);
-
+    
+    /// <summary>
+    /// Message bus interface
+    /// </summary>
     public interface IMessageBus
     {
         /// <summary>
@@ -28,7 +37,7 @@ namespace SignalR.MagicHub.Messaging
         /// <summary>
         /// Subscribe message bus on key
         /// </summary>
-        /// <param name="topic</param>
+        /// <param name="topic"></param>
         /// <param name="callback"></param>
         /// <returns></returns>
         Task Subscribe(string topic, MessageBusCallbackDelegate callback);
@@ -36,7 +45,7 @@ namespace SignalR.MagicHub.Messaging
         /// <summary>
         /// Subscribe message bus on key
         /// </summary>
-        /// <param name="topic</param>
+        /// <param name="topic"></param>
         /// <param name="callback"></param>
         /// <param name="filter"></param>
         /// <returns></returns>

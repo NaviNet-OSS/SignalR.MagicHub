@@ -1,6 +1,8 @@
 ﻿#region
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Dynamic;
 using System.Security.Principal;
@@ -31,11 +33,22 @@ namespace SignalR.MagicHub.Tests
             traceManager.Setup(t => t[AppConstants.SignalRMagicHub]).Returns(ts);
 
             _mockMessageHub = new Mock<IMessageHub>();
-
-            
+            _mockHubReleaser = new Mock<IHubReleaser>();
+            _mockSessionStateProvider = new Mock<ISessionStateProvider>();
+            _mockSessionMappings = new Mock<ISessionMappings>();
+            _mockSessionValidatorService = new Mock<ISessionValidatorService>();
             var mockContext = new HubCallerContext(Mock.Of<IRequest>((x) => x.User == Mock.Of<IPrincipal>((y) => y.Identity == Mock.Of<IIdentity>())), "123");
             
-            _topicBroker = new TopicBroker(traceManager.Object, _mockMessageHub.Object, Mock.Of<ISessionValidatorService>(), Mock.Of<ISessionStateProvider>(), Mock.Of<ISessionMappings>()) {Context = mockContext};
+            _topicBroker = new TopicBroker(
+                traceManager.Object, 
+                _mockMessageHub.Object, 
+                _mockSessionValidatorService.Object, 
+                _mockSessionStateProvider.Object, 
+                _mockSessionMappings.Object, 
+                _mockHubReleaser.Object)
+            {
+                Context = mockContext
+            };
         }
 
         [TearDown]
@@ -48,7 +61,10 @@ namespace SignalR.MagicHub.Tests
         private TopicBroker _topicBroker;
         private Mock<IMessageHub> _mockMessageHub;
         private Mock<TraceListener> _mockTraceListener;
-
+        private Mock<IHubReleaser> _mockHubReleaser;
+        private Mock<ISessionStateProvider> _mockSessionStateProvider;
+        private Mock<ISessionMappings> _mockSessionMappings;
+        private Mock<ISessionValidatorService> _mockSessionValidatorService;
         //[Test]
         //public void Test_disconnect_clients()
         //{
@@ -71,6 +87,10 @@ namespace SignalR.MagicHub.Tests
         public void Test_default_constructor()
         {
             //Arrange
+            GlobalHost.DependencyResolver.Register(typeof(IMessageHub), Mock.Of<IMessageHub>);
+            GlobalHost.DependencyResolver.Register(typeof(ISessionValidatorService), Mock.Of<ISessionValidatorService>);
+            GlobalHost.DependencyResolver.Register(typeof(ISessionStateProvider), Mock.Of<ISessionStateProvider>);
+            GlobalHost.DependencyResolver.Register(typeof(ISessionMappings), Mock.Of<ISessionMappings>);
 
             //Act
             _topicBroker = new TopicBroker();
@@ -86,7 +106,7 @@ namespace SignalR.MagicHub.Tests
             _mockMessageHub.Setup(m => m.Unsubscribe(It.IsAny<string>())).Verifiable();
 
             //Act
-            _topicBroker.OnDisconnected();
+            _topicBroker.OnDisconnected(true);
 
             //Assert
             _mockMessageHub.VerifyAll();
@@ -106,6 +126,46 @@ namespace SignalR.MagicHub.Tests
             _mockMessageHub.VerifyAll();
         }
 
+        [Test]
+        public void Test_send_keepalive_calls_session_validator_service()
+        {
+            // Arrange
+            _topicBroker.Context = new HubCallerContext(
+                Mock.Of<IRequest>(r => r.Cookies == new Dictionary<string, Cookie>()
+                {
+                    {"goo", new Cookie("goo", "ga")}
+                }), 
+                "connection-id");
+
+            // Act
+            _topicBroker.Send("nnt:session/keep-alive", "foo").Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.KeepAlive(It.Is<IDictionary<string, string>>(d => d["goo"] == "ga")));
+        }
+
+        [Test]
+        public void Test_send_keepalive_traces_error()
+        {
+            // Arrange
+            var mockRequest = new Mock<IRequest>();
+            mockRequest.SetupGet(r => r.Cookies).Throws<Exception>();
+
+            _topicBroker.Context = new HubCallerContext(mockRequest.Object, "connection-id");
+
+            // Act
+            Assert.That(() => _topicBroker.Send("nnt:session/keep-alive", "foo").Wait(), Throws.Exception);
+
+            // Assert
+            _mockTraceListener.Verify(t => t.TraceEvent(
+                It.IsAny<TraceEventCache>(),
+                It.IsAny<string>(),
+                TraceEventType.Error,
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<object[]>()),
+                                      Times.AtLeast(1));
+        }
 
         [Test]
         public void Test_subscription()
@@ -204,6 +264,222 @@ namespace SignalR.MagicHub.Tests
                 It.IsAny<string>(),
                 It.IsAny<object[]>()),
                                       Times.AtLeast(1));
+        }
+
+        [Test]
+        public void Test_that_hub_releaser_is_called_on_dispose()
+        {
+            // Act 
+            _topicBroker.Dispose();
+
+            // Assert
+            _mockHubReleaser.Verify(r => r.Release(_topicBroker));
+        }
+
+
+        [Test]
+        public void Test_that_onconnected_tracks_session_when_authenticated()
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User)
+                .Returns(Mock.Of<IPrincipal>(u =>
+                    u.Identity.IsAuthenticated == true));
+            requestMock
+                .SetupGet(r => r.Cookies)
+                .Returns(new Dictionary<string, Cookie>()
+                {
+                    { "foo", new Cookie("foo", "bar") }
+                });
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+            _mockSessionStateProvider
+                .Setup(s => 
+                    s.GetSessionState(It.IsAny<IDictionary<string, string>>()))
+                .Returns(sessionState);
+
+            // Act
+            _topicBroker.OnConnected().Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.AddTrackedSession(sessionState));
+        }
+
+        [Test]
+        public void Test_that_onconnected_tracks_nothing_when_no_user()
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User);
+            
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+            
+
+            // Act
+            _topicBroker.OnConnected().Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.AddTrackedSession(sessionState), Times.Never);
+
+        }
+
+        [Test]
+        public void Test_that_onconnected_tracks_nothing_when_user_not_authenticated()
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User)
+                .Returns(Mock.Of<IPrincipal>(u =>
+                    u.Identity.IsAuthenticated == false));
+
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+
+
+            // Act
+            _topicBroker.OnConnected().Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.AddTrackedSession(sessionState), Times.Never);
+
+        }
+
+        [Test]
+        public void Test_that_ondisconnected_doesnt_untrack_when_no_user()
+        {
+            // Arrange
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User);
+
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+
+
+            // Act
+            _topicBroker.OnDisconnected(true).Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.RemoveTrackedSession("mysessionkey"), Times.Never);
+
+        }
+
+        [Test]
+        public void Test_that_ondisconnected_doesnt_untrack_when_user_not_authenticated()
+        {
+            // Arrange
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User)
+                .Returns(Mock.Of<IPrincipal>(u =>
+                    u.Identity.IsAuthenticated == false));
+
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+
+
+            // Act
+            _topicBroker.OnDisconnected(true).Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.RemoveTrackedSession("mysessionkey"), Times.Never);
+
+        }
+
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Test_that_ondisconnected_removes_tracked_session(bool stopCalled)
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User)
+                .Returns(Mock.Of<IPrincipal>(u =>
+                    u.Identity.IsAuthenticated == true));
+            requestMock
+                .SetupGet(r => r.Cookies)
+                .Returns(new Dictionary<string, Cookie>()
+                {
+                    { "foo", new Cookie("foo", "bar") }
+                });
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+            _mockSessionStateProvider
+                .Setup(s =>
+                    s.GetSessionKey(It.IsAny<IDictionary<string, string>>()))
+                .Returns("mysessionkey");
+
+            _mockSessionMappings
+                .Setup(m => m.TryRemove("mysessionkey", "five"))
+                .Returns(true);
+            // Act
+            _topicBroker.OnDisconnected(stopCalled).Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.RemoveTrackedSession("mysessionkey"));
+        }
+
+        [Test]
+        [TestCase(true)]
+        [TestCase(false)]
+        public void Test_that_ondisconnected_doesnt_remove_tracked_session_when_it_isnt_mapped(bool stopCalled)
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User)
+                .Returns(Mock.Of<IPrincipal>(u =>
+                    u.Identity.IsAuthenticated == true));
+            requestMock
+                .SetupGet(r => r.Cookies)
+                .Returns(new Dictionary<string, Cookie>()
+                {
+                    { "foo", new Cookie("foo", "bar") }
+                });
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+            _mockSessionStateProvider
+                .Setup(s =>
+                    s.GetSessionKey(It.IsAny<IDictionary<string, string>>()))
+                .Returns("mysessionkey");
+
+            _mockSessionMappings
+                .Setup(m => m.TryRemove("mysessionkey", "five"))
+                .Returns(false);
+            // Act
+            _topicBroker.OnDisconnected(stopCalled).Wait();
+
+            // Assert
+            _mockSessionValidatorService.Verify(v => v.RemoveTrackedSession("mysessionkey"), Times.Never);
+        }
+
+        [Test]
+        public void Test_that_on_reconnected_traces()
+        {
+            // Arrange
+            var sessionState = Mock.Of<ISessionState>(ss => ss.SessionKey == "mysessionkey");
+            var requestMock = new Mock<IRequest>();
+            requestMock
+                .SetupGet(r => r.User);
+
+            _topicBroker.Context = new HubCallerContext(requestMock.Object, "five");
+
+            // Act
+            _topicBroker.OnReconnected();
+
+            // Assert 
+            _mockTraceListener.Verify(t => t.TraceEvent(
+                It.IsAny<TraceEventCache>(),
+                It.IsAny<string>(),
+                TraceEventType.Verbose,
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<object[]>()),
+                                      Times.AtLeast(1));
+
         }
     }
 }

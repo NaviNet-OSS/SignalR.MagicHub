@@ -1,6 +1,6 @@
 ///<reference path="../Scripts/jasmine.js"/>
 ///<reference path="../../../../src/SignalR.MagicHub/scripts/jquery-1.9.1.js"/>
-///<reference path="../../../../src/SignalR.MagicHub/scripts/jquery.signalR-2.0.1.js"/>
+///<reference path="../../../../src/SignalR.MagicHub/scripts/jquery.signalR-2.2.0.js"/>
 ///<reference path="../scripts/hubs.js"/>
 ///<reference path="../Scripts/jasmine-utility.js"/>
 ///<reference path="../../../../src/SignalR.MagicHub/scripts/jquery.magicHub.core.js"/>
@@ -338,7 +338,7 @@ describe("Magic hub", function () {
 
             runs(function () {
                 deferredSend.resolve();
-                $.connection.changeState($.connection.hub, $.signalR.connectionState.disconnected, $.signalR.connectionState.connected)
+                $.connection.changeState($.connection.hub, $.signalR.connectionState.disconnected, $.signalR.connectionState.connected);
                 $.connection.magicHub.send("topic", { "message": "foo" }).done(doneCallback).fail(failCallback);
             });
 
@@ -358,6 +358,7 @@ describe("Magic hub", function () {
                 doneCallback = jasmine.createSpy();
 
             var serverTopicBroker = $.connection.topicBroker.server;
+            $.connection.changeState($.connection.hub, $.signalR.connectionState.disconnected, $.signalR.connectionState.connected);
             spyOn(serverTopicBroker, "send");
             spyOn(console, "log");
             var debugSpy = null;

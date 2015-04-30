@@ -3,16 +3,15 @@
   <metadata>
     <id>SignalR.MagicHub.JS</id>
     <version>0.0.0-dev</version>
-    <title>SignalR.MagicHub</title>
+    <title>SignalR.MagicHub.JS</title>
     <authors>NaviNet</authors>
     <owners>NaviNet</owners>
-    <licenseUrl>http://www.apache.org/licenses/LICENSE-2.0</licenseUrl>
     <projectUrl>https://github.com/NaviNet/SignalR.MagicHub</projectUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
-    <description>Incredibly simple real-time signalr message hub for .NET</description>
+    <description>Incredibly simple real-time web message broker for .NET</description>
     <copyright>Copyright 2013</copyright>
-    <tags>SignalR MagicHub</tags>    
-        <dependencies>
+    <tags>SignalR Message Broker Javascript</tags>    
+    <dependencies>
       <dependency id="jQuery" version="1.9.1" />
     </dependencies>
   </metadata>

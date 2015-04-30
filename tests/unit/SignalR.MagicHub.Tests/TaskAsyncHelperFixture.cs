@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using SignalR.MagicHub.Infrastructure;
 
@@ -31,7 +32,7 @@ namespace SignalR.MagicHub.Tests
         public void Test_FromResult()
         {
             // Arrange
-            var task = TaskAsyncHelper.FromResult(42);
+            var task = Task.FromResult(42);
 
             // Assert
             Assert.That(task.Result, Is.EqualTo(42));

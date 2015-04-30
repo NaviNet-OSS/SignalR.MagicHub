@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.AspNet.SignalR;
+using Microsoft.AspNet.SignalR.Messaging;
 using Microsoft.AspNet.SignalR.Tracing;
 using SignalR.MagicHub.Infrastructure;
 using SignalR.MagicHub.SessionValidator;
@@ -19,11 +21,30 @@ namespace SignalR.MagicHub
     [Authorize]
     public class TopicBroker : Hub
     {
+        /// <summary>
+        /// The topic for debug messages
+        /// </summary>
         public const string TopicDebug = "debug/mode";
+
+        /// <summary>
+        /// The topic for session expiration messages
+        /// </summary>
         public const string TopicSessionExpired = "nnt:session/expired";
+        /// <summary>
+        /// The topic for session expiring messages
+        /// </summary>
         public const string TopicSessionExpiring = "nnt:session/expiring";
+
+        /// <summary>
+        /// The topic for session keep alive message
+        /// </summary>
         public const string TopicSessionKeepAlive = "nnt:session/keep-alive";
+
+        /// <summary>
+        /// The topic for session kept alive messages
+        /// </summary>
         public const string TopicSessionKeptAlive = "nnt:session/kept-alive";
+
         #region ctor
 
         /// <summary>
@@ -36,7 +57,8 @@ namespace SignalR.MagicHub
                 GlobalHost.DependencyResolver.Resolve<IMessageHub>(), 
                 GlobalHost.DependencyResolver.Resolve<ISessionValidatorService>(),
                 GlobalHost.DependencyResolver.Resolve<ISessionStateProvider>(),
-                GlobalHost.DependencyResolver.Resolve<ISessionMappings>()) { }
+                GlobalHost.DependencyResolver.Resolve<ISessionMappings>(),
+                GlobalHost.DependencyResolver.Resolve<IHubReleaser>()) { }
 
 
         /// <summary>
@@ -46,15 +68,41 @@ namespace SignalR.MagicHub
         /// source named SignalR.MagicHub</param>
         /// <param name="messageHub">The message hub.</param>
         /// <param name="sessionValidatorService">The session validator service.</param>
-        public TopicBroker(ITraceManager traceManager, IMessageHub messageHub, ISessionValidatorService sessionValidatorService, ISessionStateProvider sessionStateProvider, ISessionMappings sessionMappingStore)
+        /// <param name="sessionStateProvider">The session state provider.</param>
+        /// <param name="sessionMappingStore">The session mapping store.</param>
+        /// <param name="hubReleaser">Optional. The hub releaser. Can release hub instance from an IoC store.</param>
+        public TopicBroker(
+            ITraceManager traceManager,
+            IMessageHub messageHub, 
+            ISessionValidatorService sessionValidatorService, 
+            ISessionStateProvider sessionStateProvider, 
+            ISessionMappings sessionMappingStore, 
+            IHubReleaser hubReleaser)
         {
+            AssertNotNull(traceManager, "traceManager");
+            AssertNotNull(messageHub, "messageHub");
+            AssertNotNull(sessionValidatorService, "sessionValidatorService");
+            AssertNotNull(messageHub, "sessionStateProvider");
+            AssertNotNull(messageHub, "sessionMappingStore");
+
             _traceManager = traceManager;
             _messageHub = messageHub;
             _sessionValidatorService = sessionValidatorService;
             _sessionStateProvider = sessionStateProvider;
             _sessionToConnectionId = sessionMappingStore;
+            
+            // This is optional
+            _hubReleaser = hubReleaser;
         }
 
+        [DebuggerStepThrough, DebuggerHidden]
+        private void AssertNotNull(object value, string parameterName)
+        {
+            if (value == null)
+            {
+                throw new ArgumentNullException(parameterName);
+            }
+        }
         #endregion
 
         #region Private Properties
@@ -74,25 +122,27 @@ namespace SignalR.MagicHub
         /// <returns></returns>
         public override Task OnConnected()
         {
-            Trace.TraceVerbose(Context.ConnectionId + " connected.");
-            if (Context.User != null && Context.User.Identity.IsAuthenticated)
-            {
-                var sessionState =
-                    _sessionStateProvider.GetSessionState(Context.RequestCookies.ToDictionary((pair) => pair.Key,
-                                                                                              (pair) => pair.Value.Value));
-                _sessionToConnectionId.AddOrUpdate(sessionState.SessionKey, Context.ConnectionId);
-                _sessionValidatorService.AddTrackedSession(sessionState);
-            }
+            Trace.TraceVerbose("Client Connected. ConnectionId={0}", Context.ConnectionId);
+            
+            HandleConnection();
+
             return base.OnConnected();
         }
 
         /// <summary>
         /// Called when a client disconnects. This cleans up open connection data.
         /// </summary>
-        /// <returns></returns>
-        public override Task OnDisconnected()
+        /// <param name="stopCalled">true, if stop was called on the client closing the connection gracefully;
+        ///             false, if the connection has been lost for longer than the
+        ///             
+        /// <see cref="P:Microsoft.AspNet.SignalR.Configuration.IConfigurationManager.DisconnectTimeout" />.
+        ///             Timeouts can be caused by clients reconnecting to another SignalR server in scaleout.</param>
+        /// <returns>
+        /// A <see cref="T:System.Threading.Tasks.Task" />
+        /// </returns>
+        public override Task OnDisconnected(bool stopCalled)
         {
-            Trace.TraceVerbose(Context.ConnectionId + " disconnected.");
+            Trace.TraceVerbose("Client Disconnected. ConnectionId={0} StopCalled={1}", Context.ConnectionId, stopCalled);
             if (Context.User != null && Context.User.Identity.IsAuthenticated)
             {
                 var sessionKey =
@@ -106,12 +156,26 @@ namespace SignalR.MagicHub
             
             //remove from the subscription
             _messageHub.Unsubscribe(Context.ConnectionId);
-            return base.OnDisconnected();
+            return base.OnDisconnected(stopCalled);
         }
 
+        /// <summary>
+        /// Called when the connection reconnects to this hub instance.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="T:System.Threading.Tasks.Task" />
+        /// </returns>
         public override Task OnReconnected()
         {
-            Trace.TraceVerbose(Context.ConnectionId + " reconnected.");
+            Trace.TraceVerbose("Client reconnected. ConnectionId={0}", Context.ConnectionId);
+            
+            HandleConnection();
+            
+            return base.OnReconnected();
+        }
+
+        private void HandleConnection()
+        {
             if (Context.User != null && Context.User.Identity.IsAuthenticated)
             {
                 var sessionState =
@@ -120,7 +184,6 @@ namespace SignalR.MagicHub
                 _sessionToConnectionId.AddOrUpdate(sessionState.SessionKey, Context.ConnectionId);
                 _sessionValidatorService.AddTrackedSession(sessionState);
             }
-            return base.OnReconnected();
         }
 
         #endregion
@@ -212,10 +275,25 @@ namespace SignalR.MagicHub
 
         #endregion
 
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        protected override void Dispose(bool disposing)
+        {
+            Trace.TraceVerbose("Topic broker disposing. ConnectionId={0}", Context.ConnectionId);
+            base.Dispose(disposing);
+            if (_hubReleaser != null)
+            {
+                _hubReleaser.Release(this);
+            }
+        }
+
         private readonly IMessageHub _messageHub;
         private readonly ITraceManager _traceManager;
         private readonly ISessionStateProvider _sessionStateProvider;
         private readonly ISessionValidatorService _sessionValidatorService;
         private readonly ISessionMappings _sessionToConnectionId;
+        private readonly IHubReleaser _hubReleaser;
     }
 }

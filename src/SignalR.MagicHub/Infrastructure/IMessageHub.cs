@@ -3,6 +3,9 @@ using System.Threading.Tasks;
 
 namespace SignalR.MagicHub.Infrastructure
 {
+    /// <summary>
+    /// Represents the message hub used by MagicHub
+    /// </summary>
     public interface IMessageHub
     {
         /// <summary>
@@ -40,7 +43,7 @@ namespace SignalR.MagicHub.Infrastructure
         ///     Unsubscribe all topics for connection
         /// </summary>
         /// <param name="connectionId">SignallR connection for which to unsubscribe</param>
-        void Unsubscribe(string connectionId);
+        Task Unsubscribe(string connectionId);
 
         /// <summary>
         ///     Publish message to message bus

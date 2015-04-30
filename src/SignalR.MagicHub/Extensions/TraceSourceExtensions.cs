@@ -3,8 +3,18 @@ using System.Diagnostics;
 
 namespace SignalR.MagicHub
 {
+    /// <summary>
+    /// Extensions class for trace source
+    /// </summary>
     public static class TraceSourceExtensions
     {
+        /// <summary>
+        /// Traces error.
+        /// </summary>
+        /// <param name="trace">The trace.</param>
+        /// <param name="ex">The ex.</param>
+        /// <param name="optionalMessage">The optional message.</param>
+        /// <returns></returns>
         public static TraceSource TraceError(this TraceSource trace, Exception ex, string optionalMessage = null)
         {
             optionalMessage = optionalMessage == null

@@ -161,13 +161,16 @@ namespace SignalR.MagicHub.SessionValidator
         /// <param name="sessionId">The session identifier.</param>
         public void KeepAlive(string sessionId)
         {
-            var session = _sessions[sessionId];
-            bool success = _sessionStateProvider.KeepAlive(sessionId, ref session);
-            if (success)
+            ISessionState session;
+            if (_sessions.TryGetValue(sessionId, out session))
             {
-                _sessions[sessionId] = session;
+                bool success = _sessionStateProvider.KeepAlive(sessionId, ref session);
+                if (success)
+                {
+                    _sessions[sessionId] = session;
+                }
+                RaiseSessionKeptAlive(session, success);    
             }
-            RaiseSessionKeptAlive(session, success);
         }
 
         #region Private Methods

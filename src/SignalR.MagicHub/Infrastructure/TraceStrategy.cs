@@ -25,19 +25,9 @@ namespace SignalR.MagicHub.Infrastructure
 
                 return json != null && json.tracing_enabled != null && json.tracing_enabled.Value == true;
             }
-            catch (JsonReaderException)
+            catch (Exception)
             {
                 // Message not in JSON format
-                return false;
-            }
-            catch (RuntimeBinderException)
-            {
-                // Message doesn't contain a trace property 
-                return false;
-            }
-            catch (NullReferenceException)
-            {
-                // Trace property is null
                 return false;
             }
         }
