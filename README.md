@@ -22,10 +22,10 @@ Read [ASP.NET SignalR Documentation](http://www.asp.net/signalr/overview/getting
 ## Design
 
 ### Component Diagrams
-[<img src="http://wiki/download/attachments/225249570/ComponentArchitecture-WebSocketManagement.png?api=v2" />](http://wiki/download/attachments/225249570/ComponentArchitecture-WebSocketManagement.png?api=v2)
+[<img src="doc/ComponentArchitecture-WebSocketManagement.png" />](ComponentArchitecture-WebSocketManagement.png)
 
 ### Network Topology
-[<img src="http://wiki/download/attachments/225249570/NetworkTopology-WebSocketManagement.png?api=v2" />](http://wiki/download/attachments/225249570/NetworkTopology-WebSocketManagement.png?api=v2)
+[<img src="doc/NetworkTopology-WebSocketManagement.png" />](NetworkTopology-WebSocketManagement.png)
 
 ## Authentication
 
@@ -191,7 +191,7 @@ Implement `ISessionStateProvider` and register.
 
 
 ## Source Address Affinity Routing
-[<img src="http://wiki/download/attachments/225249570/SignalRMagicHub-Sticky-Sessions-Message-Flow.png?api=v2" />](http://wiki/download/attachments/225249570/SignalRMagicHub-Sticky-Sessions-Message-Flow.png?api=v2)
+[<img src="doc/SignalRMagicHub-Sticky-Sessions-Message-Flow.png" />](SignalRMagicHub-Sticky-Sessions-Message-Flow.png)
 
 
 ## Exception Handling / Logging / Tracing
@@ -202,7 +202,7 @@ We have observed that one of the components we use sometimes experiences a timeo
 `Groups add seems to have timed out. ConnectionId=GUID Topic=TOPIC Filter=FILTER`
 ### Exceptions
 #### Server
-To log any unhandled exception NaviNetSignalRMagicHub uses NLog + NLog.Syslog formatter. NLog configuration can be found in Web.config. Out of the box there is a single log target defined: Event Log. All messages with minimum level of "Warn" will be sent to Event Log.
+To log any unhandled exception NLog + NLog.Syslog formatter can be used. NLog configuration can be found in Web.config. Out of the box there is a single log target defined: Event Log. All messages with minimum level of "Warn" will be sent to Event Log.
 
 #### Client
 Any exceptions on client side are logged to browser console window.
@@ -222,11 +222,3 @@ On the server side, there will be up to 4 messages in the event log / splunk:
 `Received message from messagebus (nnt:trace-test0): {"message":"","tracing_enabled":true}`
 4. When MagicHub dispatches the message to SignalR to send to the web browser
 `Sending message (nnt:trace-test0): {"message":"","tracing_enabled":true}`   
-
-
-### Tracking Id
-The newest releases use a version of ServiceHost which will log and generate tracking ids. If a message comes through with no tracking id, a message will be logged that follows the following format:
-
-`<134>1 2015-04-28T17:43:54:28Z XXX.navimedix.com NaviNet.Commons.Logging.Castle.CastleLogger 11876 ID:KBIRGER764-54109-635658253220245786-1:98:1:2:990 [NaviNet@55555 EventClass="Application" EventSeverity="Information" Processing message with newly generated TrackingId="0a4de298-4070-4467-82d7-c708a91828b7" `
-
-If an ID is present, the message will instead read `Processing message with TrackingId="{0}"`
